@@ -1,5 +1,29 @@
-opencv-python
-mediapipe
-numpy
-pyttsx3
-scipy
+# Core dependencies
+opencv-python==4.8.1.78
+numpy==1.24.3
+pyttsx3==2.90
+Pillow==10.1.0
+
+# GUI and Visualization
+matplotlib==3.7.2
+tkinter  # Já vem com Python
+
+# Machine Learning (opcional - para versão completa)
+scikit-learn==1.3.0
+joblib==1.3.2
+pandas==2.0.3
+
+# Audio (opcional - para sons)
+winsound  # Já vem com Python (Windows)
+
+# Advanced features (instale se necessário)
+# speechrecognition==3.10.0  # Para comandos de voz
+# pyserial==3.5  # Para botão físico
+# requests==2.31.0  # Para Telegram/WhatsApp
+# tensorflow==2.13.0  # Para ML avançado (pesado)
+
+# Para Linux/Mac (alternativa ao winsound)
+# simpleaudio==1.0.4
+
+# Instalação rápida:
+# pip install -r requirements.txt

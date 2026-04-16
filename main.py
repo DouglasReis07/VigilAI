@@ -7,7 +7,7 @@ from collections import deque
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 from PIL import Image, ImageTk
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import json
 import matplotlib.pyplot as plt
@@ -16,23 +16,90 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import warnings
 warnings.filterwarnings('ignore')
 
-# ==================== LOGS SIMPLIFICADOS ====================
+# ==================== LOGS COMPLETOS ====================
 class ActivityLogger:
     def __init__(self):
         self.log_file = f"log_{datetime.now().strftime('%Y%m%d')}.csv"
         self.log_buffer = []
         self.buffer_size = 10
         
+        # Estatísticas do dia
+        self.stats = {
+            'micro_sleeps': 0,
+            'deep_sleeps': 0,
+            'fall_alerts': 0,
+            'high_risk_events': [],
+            'posture_issues': 0,
+            'medications_taken': 0,
+            'medications_total': 0,
+            'activity_periods': [],
+            'risk_peaks': []
+        }
+        
     def log_event(self, event, details, severity="INFO"):
         timestamp = datetime.now().strftime('%H:%M:%S')
         self.log_buffer.append(f"{timestamp},{event},{details},{severity}")
+        
+        # Atualiza estatísticas
+        if event == "SLEEP":
+            if "Micro-sono" in details:
+                self.stats['micro_sleeps'] += 1
+            elif "Sono profundo" in details:
+                self.stats['deep_sleeps'] += 1
+        elif event == "FALL":
+            self.stats['fall_alerts'] += 1
+        elif event == "HIGH_RISK":
+            self.stats['high_risk_events'].append(details)
+        elif event == "MEDICATION":
+            if "tomado" in details.lower():
+                self.stats['medications_taken'] += 1
         
         if len(self.log_buffer) >= self.buffer_size:
             with open(self.log_file, 'a', encoding='utf-8') as f:
                 f.write("\n".join(self.log_buffer) + "\n")
             self.log_buffer = []
+    
+    def update_medication_stats(self, total):
+        self.stats['medications_total'] = total
+    
+    def add_activity_period(self, activity, start, end):
+        self.stats['activity_periods'].append({
+            'activity': activity,
+            'start': start,
+            'end': end,
+            'duration': (end - start).total_seconds() / 60  # minutos
+        })
+    
+    def add_risk_peak(self, risk, time):
+        self.stats['risk_peaks'].append({'risk': risk, 'time': time})
+    
+    def get_summary(self):
+        # Calcula período mais ativo
+        active_periods = [p for p in self.stats['activity_periods'] if p['activity'] == 'ativo']
+        most_active = max(active_periods, key=lambda x: x['duration']) if active_periods else None
+        
+        # Calcula risco médio
+        avg_risk = np.mean([p['risk'] for p in self.stats['risk_peaks']]) if self.stats['risk_peaks'] else 0
+        
+        # Taxa de adesão medicamentos
+        med_adherence = 0
+        if self.stats['medications_total'] > 0:
+            med_adherence = (self.stats['medications_taken'] / self.stats['medications_total']) * 100
+        
+        return {
+            'micro_sleeps': self.stats['micro_sleeps'],
+            'deep_sleeps': self.stats['deep_sleeps'],
+            'fall_alerts': self.stats['fall_alerts'],
+            'high_risk_count': len(self.stats['high_risk_events']),
+            'med_adherence': med_adherence,
+            'medications_taken': self.stats['medications_taken'],
+            'medications_total': self.stats['medications_total'],
+            'most_active_period': most_active,
+            'avg_risk': avg_risk,
+            'risk_peaks': self.stats['risk_peaks'][-5:] if self.stats['risk_peaks'] else []  # Últimos 5
+        }
 
-# ==================== DETECÇÃO DE QUEDA CORRIGIDA ====================
+# ==================== DETECÇÃO DE QUEDA ====================
 class FallDetector:
     def __init__(self):
         self.fall_threshold = 200
@@ -97,7 +164,7 @@ class NightMode:
         self.active = hour < 6 or hour >= 22
         return self.active
 
-# ==================== DASHBOARD OTIMIZADO ====================
+# ==================== DASHBOARD ====================
 class RealtimeDashboard:
     def __init__(self, parent):
         self.parent = parent
@@ -192,8 +259,10 @@ class MedicationCalendar:
     def get_today_schedule(self):
         today = datetime.now().date()
         schedule = []
+        total = 0
         for med in self.medications:
             for time_str in med['schedule']:
+                total += 1
                 taken = False
                 if med.get('last_taken'):
                     try:
@@ -202,9 +271,14 @@ class MedicationCalendar:
                     except:
                         pass
                 schedule.append({'name': med['name'], 'dosage': med['dosage'], 'time': time_str, 'taken': taken})
-        return sorted(schedule, key=lambda x: x['time'])
+        return sorted(schedule, key=lambda x: x['time']), total
+    
+    def get_medication_stats(self):
+        schedule, total = self.get_today_schedule()
+        taken = sum(1 for s in schedule if s['taken'])
+        return taken, total
 
-# ==================== INTERFACE PRINCIPAL OTIMIZADA ====================
+# ==================== INTERFACE PRINCIPAL ====================
 class SeniorMonitorExpert:
     def __init__(self):
         # Módulos
@@ -215,7 +289,6 @@ class SeniorMonitorExpert:
         self.sound_manager = SoundManager()
         self.night_mode = NightMode()
         
-        # FallDetector debug (desative depois de testar)
         self.fall_detector.debug = False
         
         # Voz
@@ -228,7 +301,7 @@ class SeniorMonitorExpert:
         self.eye_cascade = None
         self._init_camera()
         
-        # Estado - OTIMIZADO
+        # Estado
         self.eyes_closed_start = None
         self.last_alert = 0
         self.last_reminder_check = 0
@@ -247,6 +320,12 @@ class SeniorMonitorExpert:
         # Estatísticas
         self.fall_risk = 0
         self.is_sleeping = False
+        self.last_activity_change = datetime.now()
+        self.current_activity = "ativo"
+        
+        # Inicializa stats de medicamentos
+        taken, total = self.medications.get_medication_stats()
+        self.logger.update_medication_stats(total)
         
         print("✅ Sistema otimizado inicializado!")
     
@@ -310,7 +389,6 @@ class SeniorMonitorExpert:
         movement = 0
         self.face_detected = False
         
-        # Detecta faces
         if self.frame_count % self.process_every_n_frames == 0:
             faces = self.face_cascade.detectMultiScale(gray, 1.3, 5, minSize=(60, 60))
         else:
@@ -320,12 +398,10 @@ class SeniorMonitorExpert:
             self.face_detected = True
             cv2.rectangle(frame, (x, y), (x+fw, y+fh), (255, 0, 0), 1)
             
-            # Detecta olhos
             roi = gray[y:y+fh, x:x+fw]
             eyes = self.eye_cascade.detectMultiScale(roi, 1.1, 5, minSize=(15, 15))
             ear = 0.1 if len(eyes) < 2 else 0.3
             
-            # Movimento
             if self.prev_center:
                 dx = (x+fw//2) - self.prev_center[0]
                 dy = (y+fh//2) - self.prev_center[1]
@@ -344,12 +420,16 @@ class SeniorMonitorExpert:
             
             if duration >= 1.5:
                 status = "😴 DORMINDO"
+                if not self.is_sleeping:
+                    self.logger.log_event("SLEEP", "Sono profundo detectado", "WARNING")
                 self.is_sleeping = True
                 if time.time() - self.last_alert > 30:
                     self.sound_manager.play_alert('sleep')
                     self.last_alert = time.time()
             elif duration >= 0.5:
                 status = "⚠️ SONOLENTO"
+                if not self.is_sleeping:
+                    self.logger.log_event("SLEEP", "Micro-sono detectado", "INFO")
                 self.is_sleeping = True
             else:
                 self.is_sleeping = False
@@ -357,7 +437,7 @@ class SeniorMonitorExpert:
             self.eyes_closed_start = None
             self.is_sleeping = False
         
-        # Cálculo de risco (simples)
+        # Cálculo de risco
         avg_movement = np.mean(self.movement_history) if self.movement_history else 0
         
         self.fall_risk = 0
@@ -370,6 +450,10 @@ class SeniorMonitorExpert:
         
         self.fall_risk = min(self.fall_risk, 1.0)
         
+        # Registra picos de risco
+        if self.fall_risk > 0.7:
+            self.logger.add_risk_peak(self.fall_risk, datetime.now())
+        
         # Detecção de queda
         is_fall = self.fall_detector.detect_fall(avg_movement, None, h, self.face_detected)
         
@@ -379,6 +463,13 @@ class SeniorMonitorExpert:
             self.falar("URGENTE! Queda detectada!")
             self.logger.log_event("FALL", f"Movimento: {avg_movement:.0f}px", "CRITICAL")
         
+        # Registra atividade
+        new_activity = "ativo" if not self.is_sleeping else "dormindo"
+        if new_activity != self.current_activity:
+            self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
+            self.current_activity = new_activity
+            self.last_activity_change = datetime.now()
+        
         # Cores por risco
         risk_color = self.get_risk_color(self.fall_risk)
         
@@ -387,16 +478,13 @@ class SeniorMonitorExpert:
         cv2.putText(frame, f"Risco: {self.fall_risk:.0%}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, risk_color, 1)
         cv2.putText(frame, f"Mov: {avg_movement:.0f}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
         
-        # Barra de sono
         if self.eyes_closed_start:
             duration = time.time() - self.eyes_closed_start
             frame = self.draw_sleep_bar(frame, duration)
         
-        # Alerta de risco alto
         if self.fall_risk > 0.7:
             cv2.putText(frame, "ALTO RISCO!", (w-100, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
         
-        # Atualiza dashboard
         if self.dashboard:
             self.dashboard.update_dashboard(self.fall_risk, self.is_sleeping)
         
@@ -405,13 +493,13 @@ class SeniorMonitorExpert:
     def update_medication_list(self):
         if self.med_listbox:
             self.med_listbox.delete(0, tk.END)
-            schedule = self.medications.get_today_schedule()
+            schedule, _ = self.medications.get_today_schedule()
             if not schedule:
                 self.med_listbox.insert(tk.END, " Nenhum medicamento")
             else:
                 for item in schedule:
                     status = "✅" if item['taken'] else "⏰"
-                    text = f"{status} {item['time']} - {item['name']}"
+                    text = f"{status} {item['time']} - {item['name']} ({item['dosage']})"
                     self.med_listbox.insert(tk.END, text)
                     if not item['taken']:
                         self.med_listbox.itemconfig(tk.END, fg='orange')
@@ -440,6 +528,8 @@ class SeniorMonitorExpert:
             schedule = [s.strip() for s in schedule_entry.get().split(',') if s.strip()]
             if name and dosage and schedule:
                 self.medications.add_medication(name, dosage, schedule)
+                taken, total = self.medications.get_medication_stats()
+                self.logger.update_medication_stats(total)
                 self.update_medication_list()
                 dialog.destroy()
                 self.falar(f"Medicamento {name} adicionado")
@@ -467,6 +557,9 @@ class SeniorMonitorExpert:
             if selection:
                 name = self.medications.medications[selection[0]]['name']
                 if self.medications.mark_as_taken(name):
+                    taken, total = self.medications.get_medication_stats()
+                    self.logger.update_medication_stats(total)
+                    self.logger.log_event("MEDICATION", f"Medicamento tomado: {name}", "INFO")
                     self.update_medication_list()
                     self.falar(f"{name} registrado")
                     dialog.destroy()
@@ -474,19 +567,109 @@ class SeniorMonitorExpert:
         tk.Button(dialog, text="Marcar", command=mark, bg='#27ae60', fg='white').pack(pady=10)
     
     def generate_report(self):
+        """Gera relatório completo com todas as estatísticas"""
+        
+        # Coleta estatísticas
+        stats = self.logger.get_summary()
+        schedule, _ = self.medications.get_today_schedule()
+        
+        # Prepara o relatório
         report = f"""
-        RELATÓRIO - {datetime.now().strftime('%d/%m/%Y %H:%M')}
+{'='*60}
+RELATÓRIO COMPLETO - SENIOR MONITOR
+{'='*60}
+
+📅 Data e Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+⏱️  Tempo de monitoramento: Desde o início do programa
+
+{'='*60}
+📊 ESTATÍSTICAS DO DIA
+{'='*60}
+
+😴 SONO E CANSACO:
+   • Micro-sonos detectados: {stats['micro_sleeps']}
+   • Sono profundo detectado: {stats['deep_sleeps']}
+   • Total de eventos de sono: {stats['micro_sleeps'] + stats['deep_sleeps']}
+
+⚠️  QUEDAS E RISCOS:
+   • Alertas de queda: {stats['fall_alerts']}
+   • Picos de alto risco: {stats['high_risk_count']}
+   • Risco médio do dia: {stats['avg_risk']:.1%}
+
+💊 MEDICAMENTOS:
+   • Total de doses do dia: {stats['medications_total']}
+   • Doses tomadas: {stats['medications_taken']}
+   • Taxa de adesão: {stats['med_adherence']:.1f}%
+   
+   Detalhamento:
+"""
         
-        Medicamentos do dia:
-        """
-        for med in self.medications.get_today_schedule():
-            report += f"\n  {med['time']} - {med['name']} - {'Tomado' if med['taken'] else 'Pendente'}"
+        # Lista medicamentos
+        for item in schedule:
+            status = "✅ TOMADO" if item['taken'] else "⏰ PENDENTE"
+            report += f"      • {item['time']} - {item['name']} ({item['dosage']}) - {status}\n"
         
+        # Período mais ativo
+        if stats['most_active_period']:
+            report += f"""
+📈 ATIVIDADE:
+   • Período mais ativo: {stats['most_active_period']['activity']}
+   • Duração: {stats['most_active_period']['duration']:.0f} minutos
+"""
+        
+        # Últimos picos de risco
+        if stats['risk_peaks']:
+            report += f"""
+🚨 ÚLTIMOS PICOS DE RISCO:
+"""
+            for peak in stats['risk_peaks']:
+                report += f"      • {peak['time'].strftime('%H:%M:%S')} - Risco: {peak['risk']:.1%}\n"
+        
+        # Recomendações
+        report += f"""
+{'='*60}
+💡 RECOMENDAÇÕES PERSONALIZADAS
+{'='*60}
+"""
+        
+        if stats['micro_sleeps'] > 5:
+            report += "   • ⚠️ Muitos episódios de micro-sono - Consulte um médico\n"
+        if stats['fall_alerts'] > 0:
+            report += "   • 🚨 Quedas detectadas - Procure assistência médica\n"
+        if stats['high_risk_count'] > 3:
+            report += "   • ⚠️ Alto risco de queda frequente - Revise ambiente doméstico\n"
+        if stats['med_adherence'] < 80 and stats['medications_total'] > 0:
+            report += "   • 💊 Baixa adesão aos medicamentos - Crie lembretes adicionais\n"
+        if stats['deep_sleeps'] > 2:
+            report += "   • 😴 Sono excessivo durante o dia - Verificar qualidade do sono noturno\n"
+        
+        if (stats['micro_sleeps'] <= 5 and stats['fall_alerts'] == 0 and 
+            stats['high_risk_count'] <= 3 and stats['med_adherence'] >= 80):
+            report += "   • ✅ Ótimo dia! Mantenha os cuidados e continue assim!\n"
+        
+        report += f"""
+{'='*60}
+📁 ARQUIVO GERADO: relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt
+{'='*60}
+"""
+        
+        # Salva relatório
         filename = f"relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        messagebox.showinfo("Relatório", f"Salvo: {filename}")
+        # Mostra preview
+        messagebox.showinfo("📄 Relatório Gerado", 
+                           f"Relatório salvo como:\n{filename}\n\n" +
+                           f"Resumo:\n"
+                           f"- Eventos de sono: {stats['micro_sleeps'] + stats['deep_sleeps']}\n"
+                           f"- Alertas de queda: {stats['fall_alerts']}\n"
+                           f"- Adesão medicamentos: {stats['med_adherence']:.1f}%\n\n"
+                           f"Clique em OK para abrir o arquivo")
+        
+        # Pergunta se quer abrir
+        if messagebox.askyesno("Abrir Relatório", "Deseja abrir o arquivo agora?"):
+            os.startfile(filename)
     
     def update_frame(self):
         if not self.running:
@@ -515,14 +698,13 @@ class SeniorMonitorExpert:
                 self.video_label.imgtk = imgtk
                 self.video_label.configure(image=imgtk)
             
-            # Verifica lembretes
             now = time.time()
             if now - self.last_reminder_check > 60:
                 reminders = self.medications.check_reminders()
                 for med in reminders:
                     self.sound_manager.play_alert('medication')
                     self.falar(f"Hora de tomar {med['dosage']} de {med['name']}")
-                    messagebox.showwarning("💊 Lembrete", f"Hora de tomar {med['name']}")
+                    messagebox.showwarning("💊 Lembrete", f"Hora de tomar {med['name']}\n{med['dosage']}")
                 self.last_reminder_check = now
             
             if self.video_label:
@@ -539,41 +721,34 @@ class SeniorMonitorExpert:
         self.root.geometry("1200x700")
         self.root.configure(bg='#2c3e50')
         
-        # Teclas de atalho
         self.root.bind('<F1>', lambda e: self.add_medication_dialog())
         self.root.bind('<F2>', lambda e: self.mark_taken_dialog())
         self.root.bind('<F3>', lambda e: self.generate_report())
         self.root.bind('<Escape>', lambda e: self.quit_app())
         
-        # Layout
         main = tk.Frame(self.root, bg='#2c3e50')
         main.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Vídeo
         video_frame = tk.Frame(main, bg='black', width=650, height=500)
         video_frame.pack(side='left', padx=5)
         video_frame.pack_propagate(False)
         self.video_label = tk.Label(video_frame, bg='black')
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        # Painel direito
         right = tk.Frame(main, bg='#2c3e50', width=500)
         right.pack(side='right', fill=tk.BOTH, expand=True, padx=5)
         
-        # Dashboard
         dash_frame = tk.Frame(right, bg='#2c3e50', height=300)
         dash_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         self.dashboard = RealtimeDashboard(dash_frame)
         
-        # Medicamentos
-        med_frame = tk.LabelFrame(right, text="💊 Hoje", bg='#2c3e50', fg='white', font=('Arial', 10, 'bold'))
+        med_frame = tk.LabelFrame(right, text="💊 Medicamentos de Hoje", bg='#2c3e50', fg='white', font=('Arial', 10, 'bold'))
         med_frame.pack(fill=tk.X, pady=5)
         
         self.med_listbox = tk.Listbox(med_frame, height=4, font=('Arial', 9), bg='#34495e', fg='white')
         self.med_listbox.pack(fill=tk.X, padx=5, pady=5)
         self.update_medication_list()
         
-        # Botões
         btn_frame = tk.Frame(right, bg='#2c3e50')
         btn_frame.pack(fill=tk.X, pady=10)
         
@@ -588,16 +763,17 @@ class SeniorMonitorExpert:
             tk.Button(btn_frame, text=text, command=cmd, bg='#3498db', fg='white', 
                      font=('Arial', 9), padx=8, pady=4).pack(side='left', padx=4)
         
-        # Status
         self.status_label = tk.Label(right, text="✅ Sistema Ativo", font=('Arial', 9), 
                                      bg='#2c3e50', fg='#2ecc71')
         self.status_label.pack(pady=5)
         
-        # Info
         info = "F1=Add | F2=Tomado | F3=Relatório | ESC=Sair"
         tk.Label(right, text=info, font=('Arial', 8), bg='#2c3e50', fg='gray').pack()
     
     def quit_app(self):
+        # Registra período final
+        self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
+        
         self.running = False
         if self.cap:
             self.cap.release()
@@ -606,15 +782,19 @@ class SeniorMonitorExpert:
             self.root.destroy()
     
     def run(self):
-        print("="*50)
-        print("🚀 SENIOR MONITOR - VERSÃO OTIMIZADA")
-        print("="*50)
-        print("✅ Inicializado sem falsos positivos")
-        print("✅ Processamento mais rápido")
-        print("✅ Interface responsiva")
-        print("="*50)
+        print("="*60)
+        print("🚀 SENIOR MONITOR - RELATÓRIO COMPLETO")
+        print("="*60)
+        print("✅ Sistema inicializado")
+        print("✅ Relatório agora inclui:")
+        print("   - Estatísticas de sono")
+        print("   - Alertas de queda")
+        print("   - Adesão a medicamentos")
+        print("   - Picos de risco")
+        print("   - Recomendações personalizadas")
+        print("="*60)
         print("\nComandos: F1=Medicamento | F2=Tomado | F3=Relatório | ESC=Sair")
-        print("="*50)
+        print("="*60)
         
         self.setup_gui()
         self.update_frame()
