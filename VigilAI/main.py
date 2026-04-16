@@ -35,7 +35,6 @@ class ActivityLogger:
             'risk_peaks': []
         }
         
-        # Cria arquivo com cabeçalho se não existir
         try:
             if not os.path.exists(self.log_file):
                 with open(self.log_file, 'w', encoding='utf-8') as f:
@@ -113,7 +112,6 @@ class ActivityLogger:
         }
     
     def close(self):
-        """Fecha o logger salvando dados pendentes"""
         self._flush_buffer()
 
 # ==================== DETECÇÃO DE QUEDA ====================
@@ -201,7 +199,7 @@ class RealtimeDashboard:
     def setup_graphs(self):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
-        ax.set_title('Monitoramento em Tempo Real', color='white', fontsize=10)
+        ax.set_title('Monitoramento em Tempo Real - VigilAI', color='white', fontsize=10)
         ax.set_facecolor('#34495e')
         ax.tick_params(colors='white')
         ax.set_ylim([0, 1])
@@ -216,22 +214,20 @@ class RealtimeDashboard:
         
         self.figure.clear()
         
-        # Gráfico 1: Risco de queda
         ax1 = self.figure.add_subplot(211)
         if len(self.risk_history) > 0:
             ax1.plot(list(self.risk_history), color='orange', linewidth=2, label='Risco')
             ax1.axhline(y=0.7, color='red', linestyle='--', alpha=0.5, label='Alerta')
-        ax1.set_title('Risco de Queda', color='white', fontsize=9)
+        ax1.set_title('Risco de Queda - VigilAI', color='white', fontsize=9)
         ax1.set_facecolor('#34495e')
         ax1.tick_params(colors='white')
         ax1.set_ylim([0, 1])
         ax1.legend(loc='upper right', facecolor='#34495e', labelcolor='white')
         
-        # Gráfico 2: Sono
         ax2 = self.figure.add_subplot(212)
         if len(self.sleep_history) > 0:
             ax2.plot(list(self.sleep_history), color='blue', linewidth=2, label='Sono')
-        ax2.set_title('Estado de Sono', color='white', fontsize=9)
+        ax2.set_title('Estado de Sono - VigilAI', color='white', fontsize=9)
         ax2.set_facecolor('#34495e')
         ax2.tick_params(colors='white')
         ax2.set_ylim([-0.1, 1.1])
@@ -353,8 +349,8 @@ class MedicationCalendar:
         taken = sum(1 for s in schedule if s['taken'])
         return taken, total
 
-# ==================== INTERFACE PRINCIPAL ====================
-class SeniorMonitorExpert:
+# ==================== INTERFACE PRINCIPAL VIGILAI ====================
+class VigilAI:
     def __init__(self):
         # Módulos
         self.dashboard = None
@@ -378,7 +374,7 @@ class SeniorMonitorExpert:
         
         # Estado
         self.eyes_closed_start = None
-        self.last_alert_time = 0  # Para controle de alertas de sono
+        self.last_alert_time = 0
         self.last_reminder_check = 0
         self.movement_history = deque(maxlen=10)
         self.prev_center = None
@@ -409,7 +405,7 @@ class SeniorMonitorExpert:
         taken, total = self.medications.get_medication_stats()
         self.logger.update_medication_stats(total)
         
-        print("✅ Sistema otimizado inicializado!")
+        print("✅ VigilAI - Sistema de Monitoramento inicializado!")
     
     def _init_engine(self):
         try:
@@ -454,20 +450,17 @@ class SeniorMonitorExpert:
     
     def get_risk_color(self, risk):
         if risk > 0.7:
-            return (0, 0, 255)      # Vermelho
+            return (0, 0, 255)
         elif risk > 0.4:
-            return (0, 165, 255)    # Laranja
-        return (0, 255, 0)          # Verde
+            return (0, 165, 255)
+        return (0, 255, 0)
     
     def draw_sleep_bar(self, frame, duration):
-        """Desenha barra de progresso do sono"""
         bar_width = 150
         bar_height = 10
         progress = min(duration / 5, 1.0)
         
-        # Fundo
         cv2.rectangle(frame, (10, 95), (10 + bar_width, 95 + bar_height), (50, 50, 50), -1)
-        # Progresso
         cv2.rectangle(frame, (10, 95), (10 + int(bar_width * progress), 95 + bar_height), (0, 0, 255), -1)
         return frame
     
@@ -481,7 +474,6 @@ class SeniorMonitorExpert:
         self.face_detected = False
         face_y = 0
         
-        # Processamento adaptativo
         if self.frame_count % self.process_every_n_frames == 0:
             faces = self.face_cascade.detectMultiScale(gray, 1.3, 5, minSize=(60, 60))
         else:
@@ -508,7 +500,6 @@ class SeniorMonitorExpert:
         
         avg_movement = np.mean(self.movement_history) if self.movement_history else 0
         
-        # Ajuste de processamento baseado no movimento
         if avg_movement > 100:
             self.high_motion_count = min(10, self.high_motion_count + 1)
         else:
@@ -519,7 +510,7 @@ class SeniorMonitorExpert:
         elif self.high_motion_count == 0:
             self.process_every_n_frames = self.base_process_rate
         
-        # ========== DETECÇÃO DE SONO COM ALERTA DE VOZ ==========
+        # Detecção de sono com alerta de voz
         sleep_duration = 0
         current_time = time.time()
         
@@ -538,7 +529,6 @@ class SeniorMonitorExpert:
                     self.sound_manager.play_alert('sleep')
                 self.is_sleeping = True
                 
-                # Alerta a cada 10 segundos se continuar dormindo
                 if current_time - self.last_alert_time > 10:
                     self.falar("Acorde! Você está dormindo!")
                     self.last_alert_time = current_time
@@ -547,7 +537,6 @@ class SeniorMonitorExpert:
                 status = "⚠️ SONOLENTO"
                 if not self.is_sleeping:
                     self.logger.log_event("SLEEP", "Micro-sono detectado", "INFO")
-                    # Alerta de micro-sono apenas uma vez
                     self.falar("Cuidado, está com sono!")
                     self.sound_manager.play_alert('sleep')
                 self.is_sleeping = True
@@ -559,7 +548,7 @@ class SeniorMonitorExpert:
             self.eyes_closed_start = None
             self.is_sleeping = False
         
-        # ========== CÁLCULO DO RISCO DE QUEDA ==========
+        # Cálculo do risco de queda
         self.fall_risk = 0
         if avg_movement > 200:
             self.fall_risk += 0.5
@@ -570,11 +559,10 @@ class SeniorMonitorExpert:
         
         self.fall_risk = min(self.fall_risk, 1.0)
         
-        # Registra picos de risco
         if self.fall_risk > 0.7:
             self.logger.add_risk_peak(self.fall_risk, datetime.now())
         
-        # ========== DETECÇÃO DE QUEDA ==========
+        # Detecção de queda
         is_fall = self.fall_detector.detect_fall(avg_movement, face_y, h, self.face_detected)
         
         if is_fall:
@@ -583,37 +571,28 @@ class SeniorMonitorExpert:
             self.falar("URGENTE! Queda detectada! Acionando socorro!")
             self.logger.log_event("FALL", f"Movimento: {avg_movement:.0f}px", "CRITICAL")
         
-        # ========== ATIVIDADE ==========
+        # Atividade
         new_activity = "ativo" if not self.is_sleeping else "dormindo"
         if new_activity != self.current_activity:
             self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
             self.current_activity = new_activity
             self.last_activity_change = datetime.now()
         
-        # ========== CORES POR RISCO ==========
         risk_color = self.get_risk_color(self.fall_risk)
         
-        # ========== INTERFACE NA TELA ==========
-        # Status principal
+        # Interface na tela
         cv2.putText(frame, f"{status}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, risk_color, 2)
-        
-        # Risco de queda
         cv2.putText(frame, f"Risco Queda: {self.fall_risk:.0%}", (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, risk_color, 2)
-        
-        # Movimento
         cv2.putText(frame, f"Movimento: {avg_movement:.0f}px", (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
         
-        # Tempo de olhos fechados
         if self.eyes_closed_start:
             duration = current_time - self.eyes_closed_start
             cv2.putText(frame, f"Olhos fechados: {duration:.1f}s", (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             frame = self.draw_sleep_bar(frame, duration)
         
-        # Alerta de alto risco
         if self.fall_risk > 0.7:
             cv2.putText(frame, "⚠️ ALTO RISCO!", (w-130, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
-        # FPS (opcional)
         if self.show_fps:
             self.fps_count += 1
             if time.time() - self.last_fps_time >= 1:
@@ -622,14 +601,12 @@ class SeniorMonitorExpert:
                 self.last_fps_time = time.time()
             cv2.putText(frame, f"FPS: {self.fps}", (w-70, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
         
-        # Atualiza dashboard
         if self.dashboard:
             self.dashboard.update_dashboard(self.fall_risk, self.is_sleeping)
         
         return frame
     
     def update_medication_list(self):
-        """Atualiza a lista de medicamentos na interface"""
         if self.med_listbox:
             self.med_listbox.delete(0, tk.END)
             schedule, _ = self.medications.get_today_schedule()
@@ -650,7 +627,7 @@ class SeniorMonitorExpert:
     
     def add_medication_dialog(self):
         dialog = tk.Toplevel(self.root)
-        dialog.title("Adicionar Medicamento")
+        dialog.title("Adicionar Medicamento - VigilAI")
         dialog.geometry("400x450")
         dialog.configure(bg='#2c3e50')
         dialog.transient(self.root)
@@ -704,13 +681,12 @@ class SeniorMonitorExpert:
                  font=('Arial', 10, 'bold'), padx=20, pady=5).pack(pady=15)
     
     def mark_taken_dialog(self):
-        """Diálogo para marcar medicamento como tomado"""
         if not self.medications.medications:
             messagebox.showinfo("Info", "Nenhum medicamento cadastrado")
             return
         
         dialog = tk.Toplevel(self.root)
-        dialog.title("Marcar Medicamento como Tomado")
+        dialog.title("Marcar Medicamento como Tomado - VigilAI")
         dialog.geometry("350x300")
         dialog.configure(bg='#2c3e50')
         dialog.transient(self.root)
@@ -719,7 +695,6 @@ class SeniorMonitorExpert:
         tk.Label(dialog, text="Selecione o medicamento:", bg='#2c3e50', fg='white', 
                 font=('Arial', 11, 'bold')).pack(pady=10)
         
-        # Listbox com scrollbar
         listbox_frame = tk.Frame(dialog, bg='#2c3e50')
         listbox_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
         
@@ -732,7 +707,6 @@ class SeniorMonitorExpert:
         listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=listbox.yview)
         
-        # Adiciona medicamentos à lista
         for med in self.medications.medications:
             listbox.insert(tk.END, f"{med['name']} - {med['dosage']}")
         
@@ -775,7 +749,7 @@ class SeniorMonitorExpert:
         
         report = f"""
 {'='*60}
-RELATÓRIO COMPLETO - SENIOR MONITOR
+RELATÓRIO VIGILAI - SISTEMA DE MONITORAMENTO
 {'='*60}
 
 📅 Data e Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
@@ -821,7 +795,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
         
         report += f"""
 {'='*60}
-💡 RECOMENDAÇÕES PERSONALIZADAS
+💡 RECOMENDAÇÕES PERSONALIZADAS - VIGILAI
 {'='*60}
 """
         
@@ -838,11 +812,11 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
             stats['high_risk_count'] <= 3 and stats['med_adherence'] >= 80):
             report += "   • ✅ Ótimo dia! Mantenha os cuidados e continue assim!\n"
         
-        filename = f"relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filename = f"relatorio_vigilai_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        messagebox.showinfo("📄 Relatório Gerado", 
+        messagebox.showinfo("📄 Relatório VigilAI", 
                            f"Relatório salvo como:\n{filename}\n\n" +
                            f"Resumo:\n"
                            f"- Eventos de sono: {stats['micro_sleeps'] + stats['deep_sleeps']}\n"
@@ -860,7 +834,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
             return
         
         log_window = tk.Toplevel(self.root)
-        log_window.title("Logs do Dia")
+        log_window.title("Logs do Dia - VigilAI")
         log_window.geometry("600x400")
         log_window.configure(bg='#2c3e50')
         
@@ -887,7 +861,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
                 frame = cv2.resize(frame, (640, 480))
             else:
                 frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                cv2.putText(frame, "MODO SIMULACAO", (200, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                cv2.putText(frame, "VIGILAI - MODO SIMULACAO", (150, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             
             frame = self.process_frame_light(frame)
             
@@ -905,7 +879,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
                 for med in reminders:
                     self.sound_manager.play_alert('medication')
                     self.falar(f"Hora de tomar {med['dosage']} de {med['name']}")
-                    messagebox.showwarning("💊 Lembrete", f"Hora de tomar {med['name']}\n{med['dosage']}")
+                    messagebox.showwarning("💊 Lembrete VigilAI", f"Hora de tomar {med['name']}\n{med['dosage']}")
                 self.last_reminder_check = now
             
             if self.video_label:
@@ -920,7 +894,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
         bg_color = self.night_mode.get_bg_color()
         
         self.root = tk.Tk()
-        self.root.title("Senior Monitor Expert - Monitoramento de Idosos")
+        self.root.title("VigilAI - Sistema de Monitoramento Inteligente")
         self.root.geometry("1200x700")
         self.root.configure(bg=bg_color)
         
@@ -954,7 +928,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
         self.dashboard = RealtimeDashboard(dash_frame)
         
         # Medicamentos
-        med_frame = tk.LabelFrame(right, text="💊 Medicamentos de Hoje", bg=bg_color, fg='white', font=('Arial', 10, 'bold'))
+        med_frame = tk.LabelFrame(right, text="💊 Medicamentos de Hoje - VigilAI", bg=bg_color, fg='white', font=('Arial', 10, 'bold'))
         med_frame.pack(fill=tk.X, pady=5)
         
         self.med_listbox = tk.Listbox(med_frame, height=4, font=('Arial', 9), bg='#34495e', fg='white')
@@ -979,12 +953,12 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
                      font=('Arial', 9), padx=8, pady=4).pack(side='left', padx=4)
         
         # Status
-        self.status_label = tk.Label(right, text="✅ Sistema Ativo | Monitorando...", font=('Arial', 9), 
+        self.status_label = tk.Label(right, text="✅ VigilAI Ativo | Monitorando...", font=('Arial', 9), 
                                      bg=bg_color, fg='#2ecc71')
         self.status_label.pack(pady=5)
         
         # Info
-        info = "F1=Add | F2=Tomado | F3=Relatório | F4=Logs | F5=FPS | F11=Tela Cheia | ESC=Sair"
+        info = "VigilAI - F1=Add | F2=Tomado | F3=Relatório | F4=Logs | F5=FPS | F11=Tela Cheia | ESC=Sair"
         tk.Label(right, text=info, font=('Arial', 8), bg=bg_color, fg='gray').pack()
     
     def toggle_fps(self):
@@ -996,7 +970,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
     
     def quit_app(self):
         self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
-        self.logger.close()  # Fecha o logger corretamente
+        self.logger.close()
         self.running = False
         if self.cap:
             self.cap.release()
@@ -1006,7 +980,7 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
     
     def run(self):
         print("="*60)
-        print("🚀 SENIOR MONITOR - SISTEMA COMPLETO")
+        print("🔍 VIGILAI - SISTEMA DE MONITORAMENTO INTELIGENTE")
         print("="*60)
         print("✅ Monitoramento de sono (micro-sonos e sono profundo)")
         print("✅ Detecção de queda por movimento brusco")
@@ -1015,9 +989,9 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
         print("✅ Dashboard com gráficos em tempo real")
         print("✅ Medicamentos com lembretes")
         print("✅ Relatórios completos com estatísticas")
-        print("✅ Alertas de voz para sono (Acorde! Está dormindo!)")
+        print("✅ Alertas de voz para sono")
         print("="*60)
-        print("\n📌 Comandos:")
+        print("\n📌 Comandos VigilAI:")
         print("   F1 - Adicionar medicamento")
         print("   F2 - Marcar medicamento como tomado")
         print("   F3 - Gerar relatório completo")
@@ -1034,5 +1008,5 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
             self.root.mainloop()
 
 if __name__ == "__main__":
-    monitor = SeniorMonitorExpert()
-    monitor.run()
+    vigil = VigilAI()
+    vigil.run()

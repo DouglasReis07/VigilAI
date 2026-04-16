@@ -1,6 +1,7 @@
-# 🤖 VigilAI - Sistema de Monitoramento para Idosos
+# 🤖 VigilAI - Sistema de Monitoramento
 
-[![Version](https://img.shields.io/badge/version-2.0-blue.svg)](https://github.com/seu-repo)
+
+[![Version](https://img.shields.io/badge/version-3.0-blue.svg)](https://github.com/seu-repo)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
@@ -9,42 +10,50 @@ Um sistema inteligente de monitoramento que usa a câmera do computador para det
 ## ✨ Funcionalidades
 
 ### 🎯 Principais
-- ✅ **Detecção de Queda** - Identifica quedas por movimento brusco
-- ✅ **Monitoramento de Sono** - Detecta micro-sonos e sono profundo
-- ✅ **Cálculo de Risco** - Mostra probabilidade de queda em tempo real
-- ✅ **Alertas por Voz** - Avisos sonoros e falados
-- ✅ **Dashboard Gráfico** - Visualização do risco em tempo real
+- ✅ **Detecção de Queda** - Identifica quedas por movimento brusco com confirmação multi-frame
+- ✅ **Monitoramento de Sono** - Detecta micro-sonos (0.5s) e sono profundo (1.5s+)
+- ✅ **Alertas de Voz** - Avisos falados: "Cuidado, está com sono!" e "Acorde! Está dormindo!"
+- ✅ **Cálculo de Risco** - Mostra probabilidade de queda em tempo real (0-100%)
+- ✅ **Cores por Risco** - Verde 🟢 (baixo), Laranja 🟡 (moderado), Vermelho 🔴 (alto)
+- ✅ **Barra de Progresso do Sono** - Visualização do tempo com olhos fechados
+- ✅ **Dashboard Gráfico** - Dois gráficos: risco de queda + estado de sono
 
 ### 💊 Medicamentos
-- ✅ **Cadastro de Remédios** - Nome, dosagem, horários
-- ✅ **Lembretes Automáticos** - Som e janela popup
-- ✅ **Controle de Adesão** - Marcar quando foi tomado
-- ✅ **Relatório de Conformidade** - Percentual de cumprimento
+- ✅ **Cadastro de Remédios** - Nome, dosagem, múltiplos horários
+- ✅ **Lembretes Automáticos** - Som e janela popup no horário
+- ✅ **Controle de Adesão** - Marcar quando foi tomado com data/hora
+- ✅ **Persistência** - Dados salvos em arquivo JSON
+- ✅ **Relatório de Conformidade** - Percentual de cumprimento diário
 
-### 📊 Relatórios
-- ✅ **Relatório Diário** - Estatísticas completas
-- ✅ **Logs de Eventos** - Histórico em CSV
-- ✅ **Gráficos de Tendência** - Evolução do risco
-- ✅ **Recomendações** - Sugestões personalizadas
+### 📊 Relatórios e Logs
+- ✅ **Relatório Diário Completo** - Estatísticas de sono, quedas, medicamentos
+- ✅ **Logs de Eventos** - Histórico em CSV com timestamp
+- ✅ **Gráficos de Tendência** - Evolução do risco ao longo do tempo
+- ✅ **Recomendações** - Sugestões personalizadas baseadas nos dados
+- ✅ **Picos de Risco** - Registro dos momentos de maior perigo
 
 ### 🎮 Interface
-- ✅ **Teclas de Atalho** - F1, F2, F3, ESC
-- ✅ **Modo Noturno** - Automático (22h às 6h)
-- ✅ **Cores por Risco** - Verde 🟢, Laranja 🟡, Vermelho 🔴
-- ✅ **Barra de Sono** - Visualização do tempo com olhos fechados
+- ✅ **Teclas de Atalho** - F1 a F5, F11, ESC
+- ✅ **Modo Noturno** - Automático entre 22h e 6h
+- ✅ **Tela Cheia** - Pressione F11
+- ✅ **FPS Opcional** - Ative com F5 para monitorar performance
+- ✅ **Processamento Adaptativo** - Ajusta automaticamente para melhor performance
 
 ## 🚀 Instalação
 
 ### Pré-requisitos
 - Python 3.8 ou superior
 - Webcam (integrada ou USB)
-- Windows/Linux/Mac
+- Windows (recomendado) / Linux / Mac
 
 ### Passo a Passo
 
 1. **Clone o repositório**
 ```bash
 git clone https://github.com/DouglasReis07/VigilAI.git
+cd VigilAI
+Instale as dependencias 
+pip install -r requirements.txt
 Crie um ambiente virtual (recomendado)
 
 bash
@@ -58,183 +67,194 @@ source venv/bin/activate
 Instale as dependências
 
 bash
-pip install -r requirements.txt
+pip install opencv-python numpy pyttsx3 pillow matplotlib
 Execute o programa
 
 bash
 python main.py
 🎮 Como Usar
-Comandos Básicos
-Tecla	Função
-F1	Adicionar medicamento
-F2	Marcar medicamento como tomado
-F3	Gerar relatório
-ESC	Sair do programa
+Comandos Rápidos
+Tecla	Função	Descrição
+F1	Adicionar Medicamento	Abre formulário para novo remédio
+F2	Marcar Tomado	Marca medicamento como tomado hoje
+F3	Gerar Relatório	Cria relatório completo do dia
+F4	Ver Logs	Mostra histórico de eventos
+F5	FPS	Ativa/desativa contador de FPS
+F11	Tela Cheia	Alterna modo tela cheia
+ESC	Sair	Encerra o programa
 Adicionando Medicamentos
 Pressione F1
 
-Preencha:
+Preencha os campos:
 
-Nome (ex: Losartana)
+Nome: Ex: "Losartana"
 
-Dosagem (ex: 50mg)
+Dosagem: Ex: "50mg", "1 comprimido"
 
-Horários (ex: 08:00, 20:00)
+Horários: Ex: "08:00, 20:00" (separados por vírgula)
 
 Clique em "Salvar"
 
+Marcando Medicamento como Tomado
+Pressione F2
+
+Selecione o medicamento na lista
+
+Clique em "Marcar como Tomado"
+
+O sistema confirma com voz e som
+
 Interpretando os Alertas
+Alertas de Sono
+Tempo	Status	Alerta de Voz
+0.5 - 1.5 segundos	⚠️ SONOLENTO	"Cuidado, está com sono!"
+> 1.5 segundos	😴 DORMINDO	"Acorde! Está dormindo!" (repetido a cada 10s)
 Cores do Risco de Queda
-Cor	Significado	Ação
-🟢 Verde	Risco baixo (0-40%)	Monitoramento normal
-🟡 Laranja	Risco moderado (40-70%)	Atenção redobrada
-🔴 Vermelho	Risco alto (70-100%)	Intervenção imediata
 
-Status na Tela
-😴 DORMINDO - Sono profundo detectado
+Cor	           Risco	     Significado	  Ação Recomendada
+🟢 Verde	  0-40%	        Baixo	         Monitoramento normal
+🟡 Laranja	  40-70%	    Moderado	     Atenção redobrada
+🔴 Vermelho	  70-100%	    Alto	         Intervenção imediata
 
-⚠️ SONOLENTO - Micro-sono (cansaço)
-
-🚨 QUEDA! - Queda detectada
-
-Ativo - Estado normal
-
-Relatórios
-Os relatórios incluem:
-
-📊 Estatísticas de sono do dia
-
-⚠️ Alertas de queda e riscos
-
-💊 Adesão a medicamentos
-
-📈 Picos de risco detectados
-
-💡 Recomendações personalizadas
-
-Os arquivos são salvos como:
-
-relatorio_YYYYMMDD_HHMMSS.txt - Relatório detalhado
-
-log_YYYYMMDD.csv - Log de eventos
-
-medications.json - Banco de medicamentos
-
-📁 Estrutura do Projeto
+O que aparece na tela
 text
-senior-monitor/
-│
-├── main.py                 # Código principal
-├── requirements.txt        # Dependências
-├── README.md              # Documentação
-│
-├── medications.json       # Dados dos medicamentos
-├── log_*.csv             # Logs diários
-├── relatorio_*.txt       # Relatórios gerados
-│
-└── recordings/           # Gravações de eventos (opcional)
+┌─────────────────────────────────────────────────────────────┐
+│  😴 DORMINDO                                    FPS: 30     │
+│  Risco Queda: 75%                                           │
+│  Movimento: 180px                                           │
+│  Olhos fechados: 2.3s                                       │
+│  [████████░░]                                         │
+│  ⚠️ ALTO RISCO!                                             │
+└─────────────────────────────────────────────────────────────┘
 
+📁 Arquivos Gerados
+Arquivo	Conteúdo	            Formato
+medications.json	            Lista de medicamentos cadastrados	JSON
+log_YYYYMMDD.csv	            Histórico de eventos do dia	        CSV
+relatorio_YYYYMMDD_HHMMSS.txt	Relatório completo	                TXT
+📊 Exemplo de Relatório
+text
+============================================================
+RELATÓRIO COMPLETO - SENIOR MONITOR
+============================================================
+
+📅 Data e Hora: 20/01/2024 15:30:00
+
+============================================================
+📊 ESTATÍSTICAS DO DIA
+============================================================
+
+😴 SONO E CANSACO:
+   • Micro-sonos detectados: 3
+   • Sono profundo detectado: 1
+   • Total de eventos de sono: 4
+
+⚠️ QUEDAS E RISCOS:
+   • Alertas de queda: 0
+   • Picos de alto risco: 2
+   • Risco médio do dia: 35.5%
+
+💊 MEDICAMENTOS:
+   • Total de doses do dia: 4
+   • Doses tomadas: 3
+   • Taxa de adesão: 75.0%
+   
+   Detalhamento:
+      • 08:00 - Losartana (50mg) - ✅ TOMADO
+      • 08:30 - Metformina (500mg) - ✅ TOMADO
+      • 20:00 - Losartana (50mg) - ⏰ PENDENTE
+      • 20:30 - Metformina (500mg) - ✅ TOMADO
+
+============================================================
+💡 RECOMENDAÇÕES PERSONALIZADAS
+============================================================
+   • 💊 Baixa adesão aos medicamentos - Crie lembretes adicionais
 🔧 Configuração Avançada
 Ajustando Sensibilidade
 No arquivo main.py, você pode ajustar:
 
 python
-# Detecção de queda
-self.fall_threshold = 200  # Quanto maior, menos sensível
+# Detecção de queda (quanto maior, menos sensível)
+self.fall_threshold = 200
 
-# Tempo para alerta de sono
-if duration >= 1.5:  # Aumente para mais tempo
-    status = "😴 DORMINDO"
+# Tempo para alerta de sono (segundos)
+if sleep_duration >= 1.5:  # Sono profundo
+if sleep_duration >= 0.5:  # Micro-sono
 
 # Risco de queda
-if avg_movement > 200:  # Aumente para ignorar movimentos pequenos
+if avg_movement > 200:  # Movimento brusco
     self.fall_risk += 0.5
 Personalizando Voz
 python
-
 # Velocidade da fala (padrão: 170)
 self.engine.setProperty('rate', 150)  # Mais lento
 self.engine.setProperty('rate', 200)  # Mais rápido
 
-# Volume (se suportado)
-self.engine.setProperty('volume', 0.8)  # 0-1
+# Volume (0-1)
+self.engine.setProperty('volume', 0.9)
 🐛 Solução de Problemas
 A câmera não funciona
 bash
 # Verifique se a câmera está conectada
-# Teste com outro aplicativo (ex: Camera do Windows)
-# Tente mudar o índice no código:
-
-for i in [0, 1, 2]:  # Testa diferentes câmeras
-Erro ao importar OpenCV
-bash
-pip uninstall opencv-python
-pip install opencv-python==4.8.1.78
+# Teste com outro aplicativo
+# O sistema tenta automaticamente os índices 0 e 1
 Sem som nos alertas
 python
-# No código, verifique se o som está ativado:
-self.sound_manager.enabled = True
-
-# Para Windows, teste:
-import winsound
-winsound.Beep(1000, 500)
+# Verifique se o som do Windows está ativado
+# O sistema usa winsound (Windows) - em Linux/Mac pode não funcionar
 O programa está lento
-python
-# Reduza a resolução da câmera:
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+O sistema já usa processamento adaptativo
 
-# Aumente o intervalo de processamento:
-self.process_every_n_frames = 3  # Processa a cada 3 frames
+Reduza a resolução da câmera (altere no código)
+
+Feche outros programas
+
 📈 Performance
-Configuração	CPU	RAM	FPS
-Alta qualidade	30-40%	200MB	30
-Média qualidade	15-20%	150MB	20
-Baixa qualidade	8-12%	100MB	15
+Modo	                  CPU	      RAM	         FPS
+Normal (parado)	         8-12%	    ~100MB	        15-20
+Normal (movimento)	     15-20%	    ~100MB	        20-25
+Alta Performance	     25-35%	    ~120MB	         30
+
 🔒 Privacidade
-Todos os dados ficam localmente no seu computador
+✅ Todos os dados ficam localmente no seu computador
 
-Nenhuma imagem é enviada para a nuvem
+✅ Nenhuma imagem é enviada para a nuvem
 
-Logs são salvos em formato texto simples
+✅ Logs são salvos em formato texto simples
 
-Você pode desligar a câmera a qualquer momento
+✅ Você pode desligar a câmera a qualquer momento
 
 🤝 Contribuindo
 Sugestões são bem-vindas! Abra uma issue ou envie um pull request.
 
-Ideias para contribuir
+Ideias para futuras melhorias
+Notificações por WhatsApp/Telegram
 
-Criar dashboard web
+Dashboard web para acesso remoto
 
-Implementar reconhecimento facial
+Reconhecimento facial para múltiplos usuários
 
-Adicionar suporte a múltiplos idiomas
+Detecção de postura curvada
 
-Criar versão para Raspberry Pi
+Botão de emergência físico
 
 📄 Licença
-MIT License - Proibido para o uso comercial !
+MIT License - Proibido para uso comercial!
 
 👨‍💻 Autor
-Seu Nome - @DouglasReis
+Seu Nome - @DouglasReis07
 
 🙏 Agradecimentos
 OpenCV pela biblioteca de visão computacional
 
 Tkinter pela interface gráfica
 
-Comunidade Python pelas bibliotecas incríveis
-
-📞 Suporte
-Linkedin: https://www.linkedin.com/in/douglasreis08/
-
-Email: douglasreis836@gmail.com
+pyttsx3 pela síntese de voz
 
 ⚡ Quick Start
 bash
 # 1. Instalar dependências
-pip install -r requirements.txt
+pip install opencv-python numpy pyttsx3 pillow matplotlib
 
 # 2. Executar
 python main.py
@@ -242,159 +262,15 @@ python main.py
 # 3. Comandos básicos
 # F1 - Adicionar remédio
 # F2 - Marcar tomado
-# F3 - Relatório
+# F3 - Relatório completo
 # ESC - Sair
 
-🎯 Exemplo de Uso
-python
-# Adicionando medicamento via código
-medications.add_medication(
-    name="Losartana",
-    dosage="50mg",
-    schedule=["08:00", "20:00"],
-    notes="Tomar após as refeições"
-)
+🎯 Teste Rápido
+Teste o sono: Feche os olhos por 2 segundos → Ouça "Acorde! Está dormindo!"
 
-# Gerando relatório manual
-generate_report()
+Teste o risco: Mexa a cabeça rapidamente → Veja o risco aumentar
 
-# Verificando logs do dia
-view_logs()
+Teste medicamento: Adicione um remédio com horário atual → Receba o lembrete
+
 Feito com ❤️ para cuidar de quem amamos
-
----
-
-## 📁 Arquivos Adicionais (Opcionais)
-
-### .gitignore (se usar Git)
-
-```gitignore
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Projeto específico
-medications.json
-log_*.csv
-relatorio_*.txt
-recordings/
-*.pkl
-*.h5
-*.zip
-*.jpg
-*.png
-
-# Logs
-*.log
-*.csv
-
-# Backup
-*.bak
-*.backup
-setup.py (para distribuição)
-python
-from setuptools import setup, find_packages
-
-setup(
-    name="senior-monitor",
-    version="2.0.0",
-    author="Seu Nome",
-    description="Sistema de monitoramento inteligente.",
-    long_description=open("README.md", encoding="utf-8").read(),
-    long_description_content_type="text/markdown",
-    url="https://github.com/seu-usuario/senior-monitor",
-    packages=find_packages(),
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Topic :: Multimedia :: Video :: Capture",
-    ],
-    python_requires=">=3.8",
-    install_requires=[
-        "opencv-python>=4.5",
-        "numpy>=1.19",
-        "pyttsx3>=2.90",
-        "Pillow>=8.0",
-        "matplotlib>=3.3",
-    ],
-    entry_points={
-        "console_scripts": [
-            "senior-monitor=main:main",
-        ],
-    },
-)
-INSTALL.md (Instruções detalhadas)
-markdown
-# Guia de Instalação Detalhado
-
-## Windows
-
-1. **Instalar Python**
-   - Baixe em python.org (versão 3.8+)
-   - Marque "Add Python to PATH"
-
-2. **Instalar dependências**
-```bash
-pip install -r requirements.txt
-Executar
-
-bash
-python main.py
-Linux (Ubuntu/Debian)
-bash
-# Instalar Python e dependências do sistema
-sudo apt update
-sudo apt install python3 python3-pip python3-tk
-sudo apt install libportaudio2  # Para áudio
-
-# Instalar bibliotecas Python
-pip3 install -r requirements.txt
-
-# Executar
-python3 main.py
-macOS
-bash
-# Instalar Homebrew (se não tiver)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Instalar dependências
-brew install python3
-brew install portaudio  # Para áudio
-
-# Instalar bibliotecas
-pip3 install -r requirements.txt
-
-# Executar
-python3 main.py
-
 
