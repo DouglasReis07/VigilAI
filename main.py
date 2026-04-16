@@ -5,9 +5,9 @@ import threading
 import numpy as np
 from collections import deque
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import messagebox, scrolledtext
 from PIL import Image, ImageTk
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import json
 import matplotlib.pyplot as plt
@@ -20,10 +20,9 @@ warnings.filterwarnings('ignore')
 class ActivityLogger:
     def __init__(self):
         self.log_file = f"log_{datetime.now().strftime('%Y%m%d')}.csv"
-        self.log_buffer = []
+        self.log_buffer = deque(maxlen=50)
         self.buffer_size = 10
         
-        # Estatísticas do dia
         self.stats = {
             'micro_sleeps': 0,
             'deep_sleeps': 0,
@@ -36,11 +35,18 @@ class ActivityLogger:
             'risk_peaks': []
         }
         
+        # Cria arquivo com cabeçalho se não existir
+        try:
+            if not os.path.exists(self.log_file):
+                with open(self.log_file, 'w', encoding='utf-8') as f:
+                    f.write("timestamp,event,details,severity\n")
+        except Exception as e:
+            print(f"Erro ao criar arquivo de log: {e}")
+    
     def log_event(self, event, details, severity="INFO"):
         timestamp = datetime.now().strftime('%H:%M:%S')
         self.log_buffer.append(f"{timestamp},{event},{details},{severity}")
         
-        # Atualiza estatísticas
         if event == "SLEEP":
             if "Micro-sono" in details:
                 self.stats['micro_sleeps'] += 1
@@ -55,9 +61,16 @@ class ActivityLogger:
                 self.stats['medications_taken'] += 1
         
         if len(self.log_buffer) >= self.buffer_size:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write("\n".join(self.log_buffer) + "\n")
-            self.log_buffer = []
+            self._flush_buffer()
+    
+    def _flush_buffer(self):
+        if self.log_buffer:
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write("\n".join(self.log_buffer) + "\n")
+                self.log_buffer.clear()
+            except Exception as e:
+                print(f"Erro ao salvar logs: {e}")
     
     def update_medication_stats(self, total):
         self.stats['medications_total'] = total
@@ -67,21 +80,21 @@ class ActivityLogger:
             'activity': activity,
             'start': start,
             'end': end,
-            'duration': (end - start).total_seconds() / 60  # minutos
+            'duration': (end - start).total_seconds() / 60
         })
     
     def add_risk_peak(self, risk, time):
         self.stats['risk_peaks'].append({'risk': risk, 'time': time})
     
+    def increment_medication_taken(self):
+        self.stats['medications_taken'] += 1
+    
     def get_summary(self):
-        # Calcula período mais ativo
         active_periods = [p for p in self.stats['activity_periods'] if p['activity'] == 'ativo']
         most_active = max(active_periods, key=lambda x: x['duration']) if active_periods else None
         
-        # Calcula risco médio
         avg_risk = np.mean([p['risk'] for p in self.stats['risk_peaks']]) if self.stats['risk_peaks'] else 0
         
-        # Taxa de adesão medicamentos
         med_adherence = 0
         if self.stats['medications_total'] > 0:
             med_adherence = (self.stats['medications_taken'] / self.stats['medications_total']) * 100
@@ -96,8 +109,12 @@ class ActivityLogger:
             'medications_total': self.stats['medications_total'],
             'most_active_period': most_active,
             'avg_risk': avg_risk,
-            'risk_peaks': self.stats['risk_peaks'][-5:] if self.stats['risk_peaks'] else []  # Últimos 5
+            'risk_peaks': self.stats['risk_peaks'][-5:] if self.stats['risk_peaks'] else []
         }
+    
+    def close(self):
+        """Fecha o logger salvando dados pendentes"""
+        self._flush_buffer()
 
 # ==================== DETECÇÃO DE QUEDA ====================
 class FallDetector:
@@ -121,8 +138,6 @@ class FallDetector:
             if self.consecutive_falls >= self.min_falls_to_confirm:
                 self.consecutive_falls = 0
                 self.last_fall_time = current_time
-                if self.debug:
-                    print(f"🚨 QUEDA DETECTADA! Movimento: {movement_speed:.0f}px")
                 return True
         
         if movement_speed < 100:
@@ -158,11 +173,18 @@ class NightMode:
     def __init__(self):
         self.active = False
         self.last_check = 0
+        self.check_interval = 60
         
     def check_night(self):
-        hour = datetime.now().hour
-        self.active = hour < 6 or hour >= 22
+        current_time = time.time()
+        if current_time - self.last_check > self.check_interval:
+            hour = datetime.now().hour
+            self.active = hour < 6 or hour >= 22
+            self.last_check = current_time
         return self.active
+    
+    def get_bg_color(self):
+        return '#1a1a2e' if self.active else '#2c3e50'
 
 # ==================== DASHBOARD ====================
 class RealtimeDashboard:
@@ -173,6 +195,7 @@ class RealtimeDashboard:
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         
         self.risk_history = deque(maxlen=30)
+        self.sleep_history = deque(maxlen=30)
         self.setup_graphs()
         
     def setup_graphs(self):
@@ -189,24 +212,44 @@ class RealtimeDashboard:
     
     def update_dashboard(self, fall_risk, is_sleeping):
         self.risk_history.append(fall_risk)
+        self.sleep_history.append(1 if is_sleeping else 0)
         
         self.figure.clear()
-        ax = self.figure.add_subplot(111)
         
+        # Gráfico 1: Risco de queda
+        ax1 = self.figure.add_subplot(211)
         if len(self.risk_history) > 0:
-            ax.plot(list(self.risk_history), color='orange', linewidth=2, label='Risco')
-            ax.axhline(y=0.7, color='red', linestyle='--', alpha=0.5, label='Alerta')
+            ax1.plot(list(self.risk_history), color='orange', linewidth=2, label='Risco')
+            ax1.axhline(y=0.7, color='red', linestyle='--', alpha=0.5, label='Alerta')
+        ax1.set_title('Risco de Queda', color='white', fontsize=9)
+        ax1.set_facecolor('#34495e')
+        ax1.tick_params(colors='white')
+        ax1.set_ylim([0, 1])
+        ax1.legend(loc='upper right', facecolor='#34495e', labelcolor='white')
         
-        ax.set_title('Risco de Queda', color='white', fontsize=10)
-        ax.set_facecolor('#34495e')
-        ax.tick_params(colors='white')
-        ax.set_ylim([0, 1])
-        ax.legend(loc='upper right', facecolor='#34495e', labelcolor='white')
+        # Gráfico 2: Sono
+        ax2 = self.figure.add_subplot(212)
+        if len(self.sleep_history) > 0:
+            ax2.plot(list(self.sleep_history), color='blue', linewidth=2, label='Sono')
+        ax2.set_title('Estado de Sono', color='white', fontsize=9)
+        ax2.set_facecolor('#34495e')
+        ax2.tick_params(colors='white')
+        ax2.set_ylim([-0.1, 1.1])
+        ax2.set_yticks([0, 1])
+        ax2.set_yticklabels(['Acordado', 'Dormindo'], color='white')
+        ax2.legend(loc='upper right', facecolor='#34495e', labelcolor='white')
         
         self.figure.tight_layout()
         self.canvas.draw()
 
 # ==================== CALENDÁRIO DE MEDICAMENTOS ====================
+def validate_time(time_str):
+    try:
+        hour, minute = map(int, time_str.split(':'))
+        return 0 <= hour <= 23 and 0 <= minute <= 59
+    except:
+        return False
+
 class MedicationCalendar:
     def __init__(self):
         self.medications = []
@@ -214,21 +257,35 @@ class MedicationCalendar:
         self.load_medications()
     
     def add_medication(self, name, dosage, schedule, notes=""):
-        med = {'name': name, 'dosage': dosage, 'schedule': schedule, 'notes': notes, 'last_taken': None}
+        med = {
+            'name': name, 
+            'dosage': dosage, 
+            'schedule': schedule, 
+            'notes': notes, 
+            'last_taken': None,
+            'last_taken_date': None
+        }
         self.medications.append(med)
         self.save_medications()
+        print(f"✅ Medicamento adicionado: {name}")
         return med
     
     def save_medications(self):
-        with open(self.medications_file, 'w') as f:
-            json.dump(self.medications, f, indent=2)
+        try:
+            with open(self.medications_file, 'w', encoding='utf-8') as f:
+                json.dump(self.medications, f, indent=2, ensure_ascii=False)
+            print(f"💾 Medicamentos salvos: {len(self.medications)}")
+        except Exception as e:
+            print(f"Erro ao salvar medicamentos: {e}")
     
     def load_medications(self):
         if os.path.exists(self.medications_file):
             try:
-                with open(self.medications_file, 'r') as f:
+                with open(self.medications_file, 'r', encoding='utf-8') as f:
                     self.medications = json.load(f)
-            except:
+                print(f"📂 Medicamentos carregados: {len(self.medications)}")
+            except Exception as e:
+                print(f"Erro ao carregar medicamentos: {e}")
                 self.medications = []
     
     def check_reminders(self):
@@ -238,39 +295,57 @@ class MedicationCalendar:
             for schedule_time in med['schedule']:
                 try:
                     hour, minute = map(int, schedule_time.split(':'))
-                    scheduled = current.replace(hour=hour, minute=minute, second=0)
+                    scheduled = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
                     diff = abs((current - scheduled).total_seconds())
+                    
                     if diff < 300:
-                        last = med.get('last_taken')
-                        if not last or datetime.fromisoformat(last).date() != current.date():
+                        last_taken = med.get('last_taken_date')
+                        today_str = current.strftime('%Y-%m-%d')
+                        
+                        if last_taken != today_str:
                             reminders.append(med)
-                except:
-                    pass
+                            break
+                except Exception as e:
+                    print(f"Erro ao verificar lembrete: {e}")
         return reminders
     
     def mark_as_taken(self, name):
-        for med in self.medications:
-            if med['name'] == name:
-                med['last_taken'] = datetime.now().isoformat()
-                self.save_medications()
-                return True
-        return False
+        try:
+            for med in self.medications:
+                if med['name'] == name:
+                    now = datetime.now()
+                    med['last_taken'] = now.strftime('%H:%M:%S')
+                    med['last_taken_date'] = now.strftime('%Y-%m-%d')
+                    self.save_medications()
+                    print(f"✅ Medicamento marcado como tomado: {name}")
+                    return True
+            print(f"❌ Medicamento não encontrado: {name}")
+            return False
+        except Exception as e:
+            print(f"Erro ao marcar medicamento: {e}")
+            return False
     
     def get_today_schedule(self):
         today = datetime.now().date()
+        today_str = today.strftime('%Y-%m-%d')
         schedule = []
         total = 0
+        
         for med in self.medications:
             for time_str in med['schedule']:
                 total += 1
                 taken = False
-                if med.get('last_taken'):
-                    try:
-                        last_date = datetime.fromisoformat(med['last_taken']).date()
-                        taken = last_date == today
-                    except:
-                        pass
-                schedule.append({'name': med['name'], 'dosage': med['dosage'], 'time': time_str, 'taken': taken})
+                
+                if med.get('last_taken_date') == today_str:
+                    taken = True
+                
+                schedule.append({
+                    'name': med['name'], 
+                    'dosage': med['dosage'], 
+                    'time': time_str, 
+                    'taken': taken
+                })
+        
         return sorted(schedule, key=lambda x: x['time']), total
     
     def get_medication_stats(self):
@@ -303,13 +378,15 @@ class SeniorMonitorExpert:
         
         # Estado
         self.eyes_closed_start = None
-        self.last_alert = 0
+        self.last_alert_time = 0  # Para controle de alertas de sono
         self.last_reminder_check = 0
         self.movement_history = deque(maxlen=10)
         self.prev_center = None
         self.face_detected = False
         self.frame_count = 0
-        self.process_every_n_frames = 2
+        self.base_process_rate = 2
+        self.process_every_n_frames = self.base_process_rate
+        self.high_motion_count = 0
         
         # Interface
         self.root = None
@@ -323,7 +400,12 @@ class SeniorMonitorExpert:
         self.last_activity_change = datetime.now()
         self.current_activity = "ativo"
         
-        # Inicializa stats de medicamentos
+        # FPS
+        self.last_fps_time = time.time()
+        self.fps_count = 0
+        self.fps = 0
+        self.show_fps = False
+        
         taken, total = self.medications.get_medication_stats()
         self.logger.update_medication_stats(total)
         
@@ -333,7 +415,9 @@ class SeniorMonitorExpert:
         try:
             self.engine = pyttsx3.init()
             self.engine.setProperty('rate', 170)
-        except:
+            self.engine.setProperty('volume', 0.9)
+        except Exception as e:
+            print(f"Erro na voz: {e}")
             self.engine = None
     
     def _init_camera(self):
@@ -361,23 +445,30 @@ class SeniorMonitorExpert:
     def falar(self, texto):
         if self.engine:
             def speak():
-                self.engine.say(texto)
-                self.engine.runAndWait()
+                try:
+                    self.engine.say(texto)
+                    self.engine.runAndWait()
+                except Exception as e:
+                    print(f"Erro ao falar: {e}")
             threading.Thread(target=speak, daemon=True).start()
     
     def get_risk_color(self, risk):
         if risk > 0.7:
-            return (0, 0, 255)
+            return (0, 0, 255)      # Vermelho
         elif risk > 0.4:
-            return (0, 165, 255)
-        return (0, 255, 0)
+            return (0, 165, 255)    # Laranja
+        return (0, 255, 0)          # Verde
     
     def draw_sleep_bar(self, frame, duration):
+        """Desenha barra de progresso do sono"""
         bar_width = 150
         bar_height = 10
         progress = min(duration / 5, 1.0)
-        cv2.rectangle(frame, (10, 30), (10 + bar_width, 30 + bar_height), (50, 50, 50), -1)
-        cv2.rectangle(frame, (10, 30), (10 + int(bar_width * progress), 30 + bar_height), (0, 0, 255), -1)
+        
+        # Fundo
+        cv2.rectangle(frame, (10, 95), (10 + bar_width, 95 + bar_height), (50, 50, 50), -1)
+        # Progresso
+        cv2.rectangle(frame, (10, 95), (10 + int(bar_width * progress), 95 + bar_height), (0, 0, 255), -1)
         return frame
     
     def process_frame_light(self, frame):
@@ -388,7 +479,9 @@ class SeniorMonitorExpert:
         ear = 0.3
         movement = 0
         self.face_detected = False
+        face_y = 0
         
+        # Processamento adaptativo
         if self.frame_count % self.process_every_n_frames == 0:
             faces = self.face_cascade.detectMultiScale(gray, 1.3, 5, minSize=(60, 60))
         else:
@@ -396,6 +489,7 @@ class SeniorMonitorExpert:
         
         for (x, y, fw, fh) in faces:
             self.face_detected = True
+            face_y = y + fh
             cv2.rectangle(frame, (x, y), (x+fw, y+fh), (255, 0, 0), 1)
             
             roi = gray[y:y+fh, x:x+fw]
@@ -412,34 +506,60 @@ class SeniorMonitorExpert:
         
         self.frame_count += 1
         
-        # Detecção de sono
+        avg_movement = np.mean(self.movement_history) if self.movement_history else 0
+        
+        # Ajuste de processamento baseado no movimento
+        if avg_movement > 100:
+            self.high_motion_count = min(10, self.high_motion_count + 1)
+        else:
+            self.high_motion_count = max(0, self.high_motion_count - 1)
+        
+        if self.high_motion_count > 3:
+            self.process_every_n_frames = 1
+        elif self.high_motion_count == 0:
+            self.process_every_n_frames = self.base_process_rate
+        
+        # ========== DETECÇÃO DE SONO COM ALERTA DE VOZ ==========
+        sleep_duration = 0
+        current_time = time.time()
+        
         if ear < 0.2:
             if self.eyes_closed_start is None:
-                self.eyes_closed_start = time.time()
-            duration = time.time() - self.eyes_closed_start
+                self.eyes_closed_start = current_time
+                print("👀 Olhos fechados detectados!")
             
-            if duration >= 1.5:
+            sleep_duration = current_time - self.eyes_closed_start
+            
+            if sleep_duration >= 1.5:
                 status = "😴 DORMINDO"
                 if not self.is_sleeping:
                     self.logger.log_event("SLEEP", "Sono profundo detectado", "WARNING")
-                self.is_sleeping = True
-                if time.time() - self.last_alert > 30:
+                    self.falar("Acorde! Está dormindo!")
                     self.sound_manager.play_alert('sleep')
-                    self.last_alert = time.time()
-            elif duration >= 0.5:
+                self.is_sleeping = True
+                
+                # Alerta a cada 10 segundos se continuar dormindo
+                if current_time - self.last_alert_time > 10:
+                    self.falar("Acorde! Você está dormindo!")
+                    self.last_alert_time = current_time
+                    
+            elif sleep_duration >= 0.5:
                 status = "⚠️ SONOLENTO"
                 if not self.is_sleeping:
                     self.logger.log_event("SLEEP", "Micro-sono detectado", "INFO")
+                    # Alerta de micro-sono apenas uma vez
+                    self.falar("Cuidado, está com sono!")
+                    self.sound_manager.play_alert('sleep')
                 self.is_sleeping = True
             else:
                 self.is_sleeping = False
         else:
+            if self.eyes_closed_start is not None:
+                print(f"👀 Olhos abertos após {current_time - self.eyes_closed_start:.1f}s")
             self.eyes_closed_start = None
             self.is_sleeping = False
         
-        # Cálculo de risco
-        avg_movement = np.mean(self.movement_history) if self.movement_history else 0
-        
+        # ========== CÁLCULO DO RISCO DE QUEDA ==========
         self.fall_risk = 0
         if avg_movement > 200:
             self.fall_risk += 0.5
@@ -454,133 +574,211 @@ class SeniorMonitorExpert:
         if self.fall_risk > 0.7:
             self.logger.add_risk_peak(self.fall_risk, datetime.now())
         
-        # Detecção de queda
-        is_fall = self.fall_detector.detect_fall(avg_movement, None, h, self.face_detected)
+        # ========== DETECÇÃO DE QUEDA ==========
+        is_fall = self.fall_detector.detect_fall(avg_movement, face_y, h, self.face_detected)
         
         if is_fall:
             status = "🚨 QUEDA!"
             self.sound_manager.play_alert('fall')
-            self.falar("URGENTE! Queda detectada!")
+            self.falar("URGENTE! Queda detectada! Acionando socorro!")
             self.logger.log_event("FALL", f"Movimento: {avg_movement:.0f}px", "CRITICAL")
         
-        # Registra atividade
+        # ========== ATIVIDADE ==========
         new_activity = "ativo" if not self.is_sleeping else "dormindo"
         if new_activity != self.current_activity:
             self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
             self.current_activity = new_activity
             self.last_activity_change = datetime.now()
         
-        # Cores por risco
+        # ========== CORES POR RISCO ==========
         risk_color = self.get_risk_color(self.fall_risk)
         
-        # Interface na tela
-        cv2.putText(frame, f"{status}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, risk_color, 2)
-        cv2.putText(frame, f"Risco: {self.fall_risk:.0%}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, risk_color, 1)
-        cv2.putText(frame, f"Mov: {avg_movement:.0f}", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
+        # ========== INTERFACE NA TELA ==========
+        # Status principal
+        cv2.putText(frame, f"{status}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, risk_color, 2)
         
+        # Risco de queda
+        cv2.putText(frame, f"Risco Queda: {self.fall_risk:.0%}", (10, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, risk_color, 2)
+        
+        # Movimento
+        cv2.putText(frame, f"Movimento: {avg_movement:.0f}px", (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        
+        # Tempo de olhos fechados
         if self.eyes_closed_start:
-            duration = time.time() - self.eyes_closed_start
+            duration = current_time - self.eyes_closed_start
+            cv2.putText(frame, f"Olhos fechados: {duration:.1f}s", (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
             frame = self.draw_sleep_bar(frame, duration)
         
+        # Alerta de alto risco
         if self.fall_risk > 0.7:
-            cv2.putText(frame, "ALTO RISCO!", (w-100, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            cv2.putText(frame, "⚠️ ALTO RISCO!", (w-130, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         
+        # FPS (opcional)
+        if self.show_fps:
+            self.fps_count += 1
+            if time.time() - self.last_fps_time >= 1:
+                self.fps = self.fps_count
+                self.fps_count = 0
+                self.last_fps_time = time.time()
+            cv2.putText(frame, f"FPS: {self.fps}", (w-70, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+        
+        # Atualiza dashboard
         if self.dashboard:
             self.dashboard.update_dashboard(self.fall_risk, self.is_sleeping)
         
         return frame
     
     def update_medication_list(self):
+        """Atualiza a lista de medicamentos na interface"""
         if self.med_listbox:
             self.med_listbox.delete(0, tk.END)
             schedule, _ = self.medications.get_today_schedule()
+            
             if not schedule:
                 self.med_listbox.insert(tk.END, " Nenhum medicamento")
+                self.med_listbox.itemconfig(0, fg='gray')
             else:
                 for item in schedule:
                     status = "✅" if item['taken'] else "⏰"
                     text = f"{status} {item['time']} - {item['name']} ({item['dosage']})"
                     self.med_listbox.insert(tk.END, text)
-                    if not item['taken']:
+                    
+                    if item['taken']:
+                        self.med_listbox.itemconfig(tk.END, fg='green')
+                    else:
                         self.med_listbox.itemconfig(tk.END, fg='orange')
     
     def add_medication_dialog(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Adicionar Medicamento")
-        dialog.geometry("400x400")
+        dialog.geometry("400x450")
         dialog.configure(bg='#2c3e50')
+        dialog.transient(self.root)
+        dialog.grab_set()
         
-        tk.Label(dialog, text="Nome:", bg='#2c3e50', fg='white').pack(pady=5)
-        name_entry = tk.Entry(dialog, width=30)
+        tk.Label(dialog, text="Nome:", bg='#2c3e50', fg='white', font=('Arial', 10)).pack(pady=5)
+        name_entry = tk.Entry(dialog, width=30, font=('Arial', 10))
         name_entry.pack(pady=5)
         
-        tk.Label(dialog, text="Dosagem:", bg='#2c3e50', fg='white').pack(pady=5)
-        dosage_entry = tk.Entry(dialog, width=30)
+        tk.Label(dialog, text="Dosagem:", bg='#2c3e50', fg='white', font=('Arial', 10)).pack(pady=5)
+        dosage_entry = tk.Entry(dialog, width=30, font=('Arial', 10))
         dosage_entry.pack(pady=5)
         
-        tk.Label(dialog, text="Horários (ex: 08:00, 20:00):", bg='#2c3e50', fg='white').pack(pady=5)
-        schedule_entry = tk.Entry(dialog, width=30)
+        tk.Label(dialog, text="Horários (ex: 08:00, 20:00):", bg='#2c3e50', fg='white', font=('Arial', 10)).pack(pady=5)
+        schedule_entry = tk.Entry(dialog, width=30, font=('Arial', 10))
         schedule_entry.pack(pady=5)
+        
+        error_label = tk.Label(dialog, text="", bg='#2c3e50', fg='red', font=('Arial', 9))
+        error_label.pack(pady=5)
         
         def save():
             name = name_entry.get().strip()
             dosage = dosage_entry.get().strip()
-            schedule = [s.strip() for s in schedule_entry.get().split(',') if s.strip()]
-            if name and dosage and schedule:
-                self.medications.add_medication(name, dosage, schedule)
-                taken, total = self.medications.get_medication_stats()
-                self.logger.update_medication_stats(total)
-                self.update_medication_list()
-                dialog.destroy()
-                self.falar(f"Medicamento {name} adicionado")
+            schedule_raw = [s.strip() for s in schedule_entry.get().split(',') if s.strip()]
+            
+            errors = []
+            if not name:
+                errors.append("Nome é obrigatório")
+            if not dosage:
+                errors.append("Dosagem é obrigatória")
+            if not schedule_raw:
+                errors.append("Pelo menos um horário é obrigatório")
+            else:
+                invalid_times = [t for t in schedule_raw if not validate_time(t)]
+                if invalid_times:
+                    errors.append(f"Horário inválido: {', '.join(invalid_times)}")
+            
+            if errors:
+                error_label.config(text="\n".join(errors))
+                return
+            
+            self.medications.add_medication(name, dosage, schedule_raw)
+            taken, total = self.medications.get_medication_stats()
+            self.logger.update_medication_stats(total)
+            self.update_medication_list()
+            dialog.destroy()
+            self.falar(f"Medicamento {name} adicionado")
+            messagebox.showinfo("Sucesso", f"Medicamento {name} adicionado com sucesso!")
         
-        tk.Button(dialog, text="Salvar", command=save, bg='#27ae60', fg='white', padx=20).pack(pady=15)
+        tk.Button(dialog, text="Salvar", command=save, bg='#27ae60', fg='white', 
+                 font=('Arial', 10, 'bold'), padx=20, pady=5).pack(pady=15)
     
     def mark_taken_dialog(self):
+        """Diálogo para marcar medicamento como tomado"""
         if not self.medications.medications:
             messagebox.showinfo("Info", "Nenhum medicamento cadastrado")
             return
         
         dialog = tk.Toplevel(self.root)
-        dialog.title("Marcar como Tomado")
-        dialog.geometry("300x250")
+        dialog.title("Marcar Medicamento como Tomado")
+        dialog.geometry("350x300")
         dialog.configure(bg='#2c3e50')
+        dialog.transient(self.root)
+        dialog.grab_set()
         
-        listbox = tk.Listbox(dialog, height=8)
-        listbox.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+        tk.Label(dialog, text="Selecione o medicamento:", bg='#2c3e50', fg='white', 
+                font=('Arial', 11, 'bold')).pack(pady=10)
         
+        # Listbox com scrollbar
+        listbox_frame = tk.Frame(dialog, bg='#2c3e50')
+        listbox_frame.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        listbox = tk.Listbox(listbox_frame, height=6, font=('Arial', 10), 
+                              bg='#34495e', fg='white', selectbackground='#3498db',
+                              yscrollcommand=scrollbar.set)
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=listbox.yview)
+        
+        # Adiciona medicamentos à lista
         for med in self.medications.medications:
-            listbox.insert(tk.END, med['name'])
+            listbox.insert(tk.END, f"{med['name']} - {med['dosage']}")
         
         def mark():
             selection = listbox.curselection()
-            if selection:
-                name = self.medications.medications[selection[0]]['name']
-                if self.medications.mark_as_taken(name):
-                    taken, total = self.medications.get_medication_stats()
-                    self.logger.update_medication_stats(total)
-                    self.logger.log_event("MEDICATION", f"Medicamento tomado: {name}", "INFO")
-                    self.update_medication_list()
-                    self.falar(f"{name} registrado")
-                    dialog.destroy()
+            if not selection:
+                messagebox.showwarning("Seleção", "Selecione um medicamento")
+                return
+            
+            selected = listbox.get(selection[0])
+            name = selected.split(' - ')[0]
+            
+            if self.medications.mark_as_taken(name):
+                taken, total = self.medications.get_medication_stats()
+                self.logger.update_medication_stats(total)
+                self.logger.increment_medication_taken()
+                self.logger.log_event("MEDICATION", f"Medicamento tomado: {name}", "INFO")
+                self.update_medication_list()
+                self.falar(f"{name} registrado como tomado")
+                self.sound_manager.play_alert('medication')
+                messagebox.showinfo("Sucesso", f"✅ {name} registrado como tomado!")
+                dialog.destroy()
+            else:
+                messagebox.showerror("Erro", f"Não foi possível marcar {name}")
         
-        tk.Button(dialog, text="Marcar", command=mark, bg='#27ae60', fg='white').pack(pady=10)
+        btn_frame = tk.Frame(dialog, bg='#2c3e50')
+        btn_frame.pack(pady=15)
+        
+        tk.Button(btn_frame, text="✅ Marcar como Tomado", command=mark, 
+                 bg='#27ae60', fg='white', font=('Arial', 10, 'bold'), 
+                 padx=15, pady=5).pack(side='left', padx=5)
+        
+        tk.Button(btn_frame, text="Cancelar", command=dialog.destroy, 
+                 bg='#e74c3c', fg='white', font=('Arial', 10, 'bold'), 
+                 padx=15, pady=5).pack(side='left', padx=5)
     
     def generate_report(self):
-        """Gera relatório completo com todas as estatísticas"""
-        
-        # Coleta estatísticas
         stats = self.logger.get_summary()
         schedule, _ = self.medications.get_today_schedule()
         
-        # Prepara o relatório
         report = f"""
 {'='*60}
 RELATÓRIO COMPLETO - SENIOR MONITOR
 {'='*60}
 
 📅 Data e Hora: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
-⏱️  Tempo de monitoramento: Desde o início do programa
 
 {'='*60}
 📊 ESTATÍSTICAS DO DIA
@@ -603,13 +801,10 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
    
    Detalhamento:
 """
-        
-        # Lista medicamentos
         for item in schedule:
             status = "✅ TOMADO" if item['taken'] else "⏰ PENDENTE"
             report += f"      • {item['time']} - {item['name']} ({item['dosage']}) - {status}\n"
         
-        # Período mais ativo
         if stats['most_active_period']:
             report += f"""
 📈 ATIVIDADE:
@@ -617,7 +812,6 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
    • Duração: {stats['most_active_period']['duration']:.0f} minutos
 """
         
-        # Últimos picos de risco
         if stats['risk_peaks']:
             report += f"""
 🚨 ÚLTIMOS PICOS DE RISCO:
@@ -625,7 +819,6 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
             for peak in stats['risk_peaks']:
                 report += f"      • {peak['time'].strftime('%H:%M:%S')} - Risco: {peak['risk']:.1%}\n"
         
-        # Recomendações
         report += f"""
 {'='*60}
 💡 RECOMENDAÇÕES PERSONALIZADAS
@@ -640,36 +833,44 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
             report += "   • ⚠️ Alto risco de queda frequente - Revise ambiente doméstico\n"
         if stats['med_adherence'] < 80 and stats['medications_total'] > 0:
             report += "   • 💊 Baixa adesão aos medicamentos - Crie lembretes adicionais\n"
-        if stats['deep_sleeps'] > 2:
-            report += "   • 😴 Sono excessivo durante o dia - Verificar qualidade do sono noturno\n"
         
         if (stats['micro_sleeps'] <= 5 and stats['fall_alerts'] == 0 and 
             stats['high_risk_count'] <= 3 and stats['med_adherence'] >= 80):
             report += "   • ✅ Ótimo dia! Mantenha os cuidados e continue assim!\n"
         
-        report += f"""
-{'='*60}
-📁 ARQUIVO GERADO: relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt
-{'='*60}
-"""
-        
-        # Salva relatório
         filename = f"relatorio_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(filename, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        # Mostra preview
         messagebox.showinfo("📄 Relatório Gerado", 
                            f"Relatório salvo como:\n{filename}\n\n" +
                            f"Resumo:\n"
                            f"- Eventos de sono: {stats['micro_sleeps'] + stats['deep_sleeps']}\n"
                            f"- Alertas de queda: {stats['fall_alerts']}\n"
-                           f"- Adesão medicamentos: {stats['med_adherence']:.1f}%\n\n"
-                           f"Clique em OK para abrir o arquivo")
+                           f"- Adesão medicamentos: {stats['med_adherence']:.1f}%")
+    
+    def view_logs(self):
+        logs = []
+        if os.path.exists(self.logger.log_file):
+            with open(self.logger.log_file, 'r', encoding='utf-8') as f:
+                logs = f.readlines()[1:]
         
-        # Pergunta se quer abrir
-        if messagebox.askyesno("Abrir Relatório", "Deseja abrir o arquivo agora?"):
-            os.startfile(filename)
+        if not logs:
+            messagebox.showinfo("Logs", "Nenhum evento registrado hoje")
+            return
+        
+        log_window = tk.Toplevel(self.root)
+        log_window.title("Logs do Dia")
+        log_window.geometry("600x400")
+        log_window.configure(bg='#2c3e50')
+        
+        text_area = scrolledtext.ScrolledText(log_window, wrap=tk.WORD, width=80, height=20, font=('Courier', 9))
+        text_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        for log in logs[-100:]:
+            text_area.insert(tk.END, log)
+        
+        text_area.config(state=tk.DISABLED)
     
     def update_frame(self):
         if not self.running:
@@ -716,64 +917,86 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
                 self.video_label.after(100, self.update_frame)
     
     def setup_gui(self):
-        self.root = tk.Tk()
-        self.root.title("Senior Monitor Expert")
-        self.root.geometry("1200x700")
-        self.root.configure(bg='#2c3e50')
+        bg_color = self.night_mode.get_bg_color()
         
+        self.root = tk.Tk()
+        self.root.title("Senior Monitor Expert - Monitoramento de Idosos")
+        self.root.geometry("1200x700")
+        self.root.configure(bg=bg_color)
+        
+        # Teclas de atalho
         self.root.bind('<F1>', lambda e: self.add_medication_dialog())
         self.root.bind('<F2>', lambda e: self.mark_taken_dialog())
         self.root.bind('<F3>', lambda e: self.generate_report())
+        self.root.bind('<F4>', lambda e: self.view_logs())
+        self.root.bind('<F5>', lambda e: self.toggle_fps())
         self.root.bind('<Escape>', lambda e: self.quit_app())
+        self.root.bind('<F11>', lambda e: self.toggle_fullscreen())
         
-        main = tk.Frame(self.root, bg='#2c3e50')
+        # Layout principal
+        main = tk.Frame(self.root, bg=bg_color)
         main.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
+        # Frame do vídeo (esquerda)
         video_frame = tk.Frame(main, bg='black', width=650, height=500)
         video_frame.pack(side='left', padx=5)
         video_frame.pack_propagate(False)
         self.video_label = tk.Label(video_frame, bg='black')
         self.video_label.pack(fill=tk.BOTH, expand=True)
         
-        right = tk.Frame(main, bg='#2c3e50', width=500)
+        # Painel direito
+        right = tk.Frame(main, bg=bg_color, width=500)
         right.pack(side='right', fill=tk.BOTH, expand=True, padx=5)
         
-        dash_frame = tk.Frame(right, bg='#2c3e50', height=300)
+        # Dashboard
+        dash_frame = tk.Frame(right, bg=bg_color, height=300)
         dash_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         self.dashboard = RealtimeDashboard(dash_frame)
         
-        med_frame = tk.LabelFrame(right, text="💊 Medicamentos de Hoje", bg='#2c3e50', fg='white', font=('Arial', 10, 'bold'))
+        # Medicamentos
+        med_frame = tk.LabelFrame(right, text="💊 Medicamentos de Hoje", bg=bg_color, fg='white', font=('Arial', 10, 'bold'))
         med_frame.pack(fill=tk.X, pady=5)
         
         self.med_listbox = tk.Listbox(med_frame, height=4, font=('Arial', 9), bg='#34495e', fg='white')
         self.med_listbox.pack(fill=tk.X, padx=5, pady=5)
         self.update_medication_list()
         
-        btn_frame = tk.Frame(right, bg='#2c3e50')
+        # Botões
+        btn_frame = tk.Frame(right, bg=bg_color)
         btn_frame.pack(fill=tk.X, pady=10)
         
         buttons = [
-            ("➕ Medicamento (F1)", self.add_medication_dialog),
-            ("✅ Tomado (F2)", self.mark_taken_dialog),
-            ("📊 Relatório (F3)", self.generate_report),
-            ("❌ Sair (ESC)", self.quit_app)
+            ("➕ Medicamento (F1)", self.add_medication_dialog, '#3498db'),
+            ("✅ Tomado (F2)", self.mark_taken_dialog, '#27ae60'),
+            ("📊 Relatório (F3)", self.generate_report, '#e67e22'),
+            ("📋 Logs (F4)", self.view_logs, '#9b59b6'),
+            ("🎮 FPS (F5)", self.toggle_fps, '#1abc9c'),
+            ("❌ Sair (ESC)", self.quit_app, '#e74c3c')
         ]
         
-        for text, cmd in buttons:
-            tk.Button(btn_frame, text=text, command=cmd, bg='#3498db', fg='white', 
+        for text, cmd, color in buttons:
+            tk.Button(btn_frame, text=text, command=cmd, bg=color, fg='white', 
                      font=('Arial', 9), padx=8, pady=4).pack(side='left', padx=4)
         
-        self.status_label = tk.Label(right, text="✅ Sistema Ativo", font=('Arial', 9), 
-                                     bg='#2c3e50', fg='#2ecc71')
+        # Status
+        self.status_label = tk.Label(right, text="✅ Sistema Ativo | Monitorando...", font=('Arial', 9), 
+                                     bg=bg_color, fg='#2ecc71')
         self.status_label.pack(pady=5)
         
-        info = "F1=Add | F2=Tomado | F3=Relatório | ESC=Sair"
-        tk.Label(right, text=info, font=('Arial', 8), bg='#2c3e50', fg='gray').pack()
+        # Info
+        info = "F1=Add | F2=Tomado | F3=Relatório | F4=Logs | F5=FPS | F11=Tela Cheia | ESC=Sair"
+        tk.Label(right, text=info, font=('Arial', 8), bg=bg_color, fg='gray').pack()
+    
+    def toggle_fps(self):
+        self.show_fps = not self.show_fps
+        self.falar(f"FPS {'ativado' if self.show_fps else 'desativado'}")
+    
+    def toggle_fullscreen(self):
+        self.root.attributes('-fullscreen', not self.root.attributes('-fullscreen'))
     
     def quit_app(self):
-        # Registra período final
         self.logger.add_activity_period(self.current_activity, self.last_activity_change, datetime.now())
-        
+        self.logger.close()  # Fecha o logger corretamente
         self.running = False
         if self.cap:
             self.cap.release()
@@ -783,17 +1006,25 @@ RELATÓRIO COMPLETO - SENIOR MONITOR
     
     def run(self):
         print("="*60)
-        print("🚀 SENIOR MONITOR - RELATÓRIO COMPLETO")
+        print("🚀 SENIOR MONITOR - SISTEMA COMPLETO")
         print("="*60)
-        print("✅ Sistema inicializado")
-        print("✅ Relatório agora inclui:")
-        print("   - Estatísticas de sono")
-        print("   - Alertas de queda")
-        print("   - Adesão a medicamentos")
-        print("   - Picos de risco")
-        print("   - Recomendações personalizadas")
+        print("✅ Monitoramento de sono (micro-sonos e sono profundo)")
+        print("✅ Detecção de queda por movimento brusco")
+        print("✅ Cálculo de risco de queda com cores")
+        print("✅ Barra de progresso do sono")
+        print("✅ Dashboard com gráficos em tempo real")
+        print("✅ Medicamentos com lembretes")
+        print("✅ Relatórios completos com estatísticas")
+        print("✅ Alertas de voz para sono (Acorde! Está dormindo!)")
         print("="*60)
-        print("\nComandos: F1=Medicamento | F2=Tomado | F3=Relatório | ESC=Sair")
+        print("\n📌 Comandos:")
+        print("   F1 - Adicionar medicamento")
+        print("   F2 - Marcar medicamento como tomado")
+        print("   F3 - Gerar relatório completo")
+        print("   F4 - Visualizar logs do dia")
+        print("   F5 - Ativar/desativar FPS")
+        print("   F11 - Tela cheia")
+        print("   ESC - Sair")
         print("="*60)
         
         self.setup_gui()
