@@ -6,7 +6,7 @@ markdown
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
-Um sistema inteligente de monitoramento que usa a câmera do computador para detectar situações de risco em idosos, como quedas, sonolência excessiva e esquecimento de medicamentos.
+Um sistema inteligente de monitoramento que usa a câmera do computador para detectar situações de risco, como quedas, sonolência excessiva e esquecimento de medicamentos.
 
 ## ✨ Funcionalidades
 
@@ -46,8 +46,7 @@ Um sistema inteligente de monitoramento que usa a câmera do computador para det
 
 1. **Clone o repositório**
 ```bash
-git clone https://github.com/seu-usuario/senior-monitor.git
-cd senior-monitor
+git clone https://github.com/DouglasReis07/VigilAI.git
 Crie um ambiente virtual (recomendado)
 
 bash
@@ -92,6 +91,7 @@ Cor	Significado	Ação
 🟢 Verde	Risco baixo (0-40%)	Monitoramento normal
 🟡 Laranja	Risco moderado (40-70%)	Atenção redobrada
 🔴 Vermelho	Risco alto (70-100%)	Intervenção imediata
+
 Status na Tela
 😴 DORMINDO - Sono profundo detectado
 
@@ -135,6 +135,7 @@ senior-monitor/
 ├── relatorio_*.txt       # Relatórios gerados
 │
 └── recordings/           # Gravações de eventos (opcional)
+
 🔧 Configuração Avançada
 Ajustando Sensibilidade
 No arquivo main.py, você pode ajustar:
@@ -152,6 +153,7 @@ if avg_movement > 200:  # Aumente para ignorar movimentos pequenos
     self.fall_risk += 0.5
 Personalizando Voz
 python
+
 # Velocidade da fala (padrão: 170)
 self.engine.setProperty('rate', 150)  # Mais lento
 self.engine.setProperty('rate', 200)  # Mais rápido
@@ -164,6 +166,7 @@ bash
 # Verifique se a câmera está conectada
 # Teste com outro aplicativo (ex: Camera do Windows)
 # Tente mudar o índice no código:
+
 for i in [0, 1, 2]:  # Testa diferentes câmeras
 Erro ao importar OpenCV
 bash
@@ -203,7 +206,6 @@ Você pode desligar a câmera a qualquer momento
 Sugestões são bem-vindas! Abra uma issue ou envie um pull request.
 
 Ideias para contribuir
-Adicionar notificações WhatsApp/Telegram
 
 Criar dashboard web
 
@@ -214,10 +216,10 @@ Adicionar suporte a múltiplos idiomas
 Criar versão para Raspberry Pi
 
 📄 Licença
-MIT License - Livre para uso pessoal e comercial
+MIT License - Proibido para o uso comercial !
 
 👨‍💻 Autor
-Seu Nome - @seu-usuario
+Seu Nome - @DouglasReis
 
 🙏 Agradecimentos
 OpenCV pela biblioteca de visão computacional
@@ -227,9 +229,9 @@ Tkinter pela interface gráfica
 Comunidade Python pelas bibliotecas incríveis
 
 📞 Suporte
-Issues: GitHub Issues
+Linkedin: https://www.linkedin.com/in/douglasreis08/
 
-Email: seu-email@example.com
+Email: douglasreis836@gmail.com
 
 ⚡ Quick Start
 bash
@@ -244,6 +246,7 @@ python main.py
 # F2 - Marcar tomado
 # F3 - Relatório
 # ESC - Sair
+
 🎯 Exemplo de Uso
 python
 # Adicionando medicamento via código
@@ -260,8 +263,6 @@ generate_report()
 # Verificando logs do dia
 view_logs()
 Feito com ❤️ para cuidar de quem amamos
-
-text
 
 ---
 
@@ -328,7 +329,7 @@ setup(
     name="senior-monitor",
     version="2.0.0",
     author="Seu Nome",
-    description="Sistema de monitoramento inteligente para idosos",
+    description="Sistema de monitoramento inteligente.",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/seu-usuario/senior-monitor",
@@ -397,10 +398,5 @@ pip3 install -r requirements.txt
 
 # Executar
 python3 main.py
-text
 
----
 
-Estes arquivos vão deixar seu projeto muito mais profissional e fácil de compartilhar! 🚀
-
-Quer que eu ajuste alguma seção específica do README ou adicione mais informações?
